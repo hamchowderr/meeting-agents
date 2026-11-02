@@ -1,0 +1,19 @@
+# Meeting agents on Coolify. Coolify routes the domain to port 4111.
+# Secrets come from Infisical: project "Otaku Solutions", Production, folder /otaku.
+services:
+  agents:
+    build: .
+    environment:
+      - SERVICE_FQDN_AGENTS_4111
+      # The public https address, used in the bot's webhook and camera-page links.
+      - PUBLIC_URL=${PUBLIC_URL}
+      - RECALL_API_KEY=${RECALL_API_KEY}
+      - RECALL_REGION=${RECALL_REGION:-us-west-2}
+      # Recall dashboard > API keys > workspace verification secret (whsec_...).
+      - RECALL_WEBHOOK_SECRET=${RECALL_WEBHOOK_SECRET:-}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      # Opens the start page and co-pilot: https://<domain>/app/?key=<OWNER_KEY>
+      - OWNER_KEY=${OWNER_KEY}
+      - SELLER_NAME=${SELLER_NAME:-Tylan}
+      - BOT_NAME=${BOT_NAME:-Otaku notes}
+    restart: unless-stopped
