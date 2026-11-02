@@ -1,0 +1,25 @@
+@import 'tailwindcss';
+
+/* Otaku Solutions brand tokens. */
+@theme {
+  --color-bg: #fbf6ee;
+  --color-paper: #ffffff;
+  --color-ink: #1e2033;
+  --color-soft: #6a6878;
+  --color-line: #e3ddea;
+  --color-navy: #3b426d;
+  --color-rust: #6b2f22;
+  --color-gold: #fdcc5c;
+  --color-good: #2f6b45;
+  --color-blush: #fbefe9;
+  --color-mist: #f4f1f8;
+  --font-display: 'Newsreader', Georgia, serif;
+  --font-sans: 'Manrope', system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+
+body {
+  margin: 0;
+  background: var(--color-bg);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+}
