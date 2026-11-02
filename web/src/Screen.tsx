@@ -20,18 +20,18 @@ export function Screen({ id }: { id: string }) {
   return (
     <div className="h-screen w-screen overflow-hidden bg-bg">
       <div className="origin-top-left" style={{ width: 1280, height: 720, transform: `scale(${scale})` }}>
-        {!v || !v.showMath ? <Idle /> : <Formula v={v} />}
+        {!v || !v.showMath ? <Idle seller={v?.seller} /> : <Formula v={v} />}
       </div>
     </div>
   )
 }
 
-function Idle() {
+function Idle({ seller }: { seller?: string }) {
   return (
     <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
       <p className="text-[15px] font-extrabold uppercase tracking-[.14em] text-rust">Otaku notes</p>
-      <p className="font-display text-[52px] leading-tight">Taking notes for Otaku Solutions</p>
-      <p className="text-xl text-soft">This call is recorded. Ask to remove me at any time.</p>
+      <p className="font-display text-[52px] leading-tight">Taking notes for {seller ?? 'Otaku Solutions'}</p>
+      <p className="text-xl text-soft">This call is recorded. Ask {seller ?? 'your host'} to remove me at any time.</p>
     </div>
   )
 }

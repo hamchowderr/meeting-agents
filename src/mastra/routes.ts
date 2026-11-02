@@ -3,24 +3,24 @@ import path from 'node:path'
 import { registerApiRoute } from '@mastra/core/server'
 import type { Context } from 'hono'
 import { z } from 'zod'
+import { mailerFromEnv, type SendCode } from '../auth/mail'
+import { type Seller, sellersFromEnv } from '../auth/sellers'
+import { Codes, clearCookie, sellerFrom, sessionCookie } from '../auth/session'
 import { isFromRecall } from '../recall/verify'
 import { utteranceFrom } from '../recall/transcript'
 import type { Calls } from '../sales/calls'
-import { safeEqual } from '../sales/calls'
 import { type CallState, copilotView, prospectView } from '../sales/state'
 
 const open = { requiresAuth: false } as const
 
-/** The owner's key, from `Authorization: Bearer` or `?key=` (EventSource can't send headers). */
-export function isOwner(c: Context, ownerKey = process.env.OWNER_KEY): boolean {
-  if (!ownerKey) return false
-  const header = c.req.header('authorization')?.replace(/^Bearer\s+/i, '')
-  const given = header || c.req.query('key')
-  return !!given && safeEqual(given, ownerKey)
-}
-
-const denied = (c: Context) => c.json({ error: 'unauthorized', message: 'Owner key required' }, 401)
+const denied = (c: Context) => c.json({ error: 'unauthorized', message: 'Sign in first' }, 401)
 const notFound = (c: Context) => c.json({ error: 'not_found', message: 'No such call' }, 404)
+
+/** The signed-in seller's call, or null: a seller sees their own calls, an admin sees all. */
+function ownCall(c: Context, calls: Calls, seller: Seller): CallState | null {
+  const s = calls.get(c.req.param('id') ?? '')
+  return s && (seller.admin || s.seller.email === seller.email) ? s : null
+}
 
 /** Server-sent events: the view now, then again on every change. */
 function sse(c: Context, calls: Calls, id: string, view: (s: CallState) => unknown): Response {
@@ -58,20 +58,71 @@ const startInput = z.object({
   prospect: z.string().max(120).nullish(),
 })
 
-export function salesRoutes(calls: Calls, webDist = process.env.WEB_DIST || path.resolve(process.cwd(), 'web/dist')) {
+export function salesRoutes(calls: Calls, opts: { webDist?: string; sendCode?: SendCode } = {}) {
+  const webDist = opts.webDist ?? (process.env.WEB_DIST || path.resolve(process.cwd(), 'web/dist'))
+  const sendCode = opts.sendCode ?? mailerFromEnv()
+  const codes = new Codes()
   return [
     registerApiRoute('/health', { method: 'GET', ...open, handler: async (c) => c.json({ ok: true }) }),
 
-    // Owner: start, list, watch and control calls.
+    // Sign-in: a code to a listed seller's email, then a signed cookie.
+    registerApiRoute('/auth/code', {
+      method: 'POST',
+      ...open,
+      handler: async (c) => {
+        const { email } = (await c.req.json().catch(() => ({}))) as { email?: string }
+        const seller = sellersFromEnv().find((s) => s.email === email?.trim().toLowerCase())
+        // Same answer either way, so the form doesn't reveal who is a seller.
+        if (seller) {
+          try {
+            await sendCode(seller, codes.issue(seller.email))
+          } catch (e) {
+            console.error('sign-in email failed', e)
+            return c.json({ error: 'email_failed', message: "The code couldn't be sent. Try again in a minute." }, 502)
+          }
+        }
+        return c.json({ ok: true })
+      },
+    }),
+    registerApiRoute('/auth/verify', {
+      method: 'POST',
+      ...open,
+      handler: async (c) => {
+        const { email, code } = (await c.req.json().catch(() => ({}))) as { email?: string; code?: string }
+        const seller = sellersFromEnv().find((s) => s.email === email?.trim().toLowerCase())
+        if (!seller || !code || !codes.check(seller.email, code.trim())) return c.json({ error: 'bad_code', message: 'That code is wrong or expired.' }, 401)
+        c.header('set-cookie', sessionCookie(seller.email, new URL(c.req.url).protocol === 'https:' || process.env.NODE_ENV === 'production'))
+        return c.json({ name: seller.name, email: seller.email, admin: seller.admin })
+      },
+    }),
+    registerApiRoute('/auth/me', {
+      method: 'GET',
+      ...open,
+      handler: async (c) => {
+        const seller = sellerFrom(c)
+        return seller ? c.json({ name: seller.name, email: seller.email, admin: seller.admin }) : denied(c)
+      },
+    }),
+    registerApiRoute('/auth/logout', {
+      method: 'POST',
+      ...open,
+      handler: async (c) => {
+        c.header('set-cookie', clearCookie())
+        return c.json({ ok: true })
+      },
+    }),
+
+    // Sellers: start, list, watch and control their calls.
     registerApiRoute('/calls', {
       method: 'POST',
       ...open,
       handler: async (c) => {
-        if (!isOwner(c)) return denied(c)
+        const seller = sellerFrom(c)
+        if (!seller) return denied(c)
         const parsed = startInput.safeParse(await c.req.json().catch(() => ({})))
         if (!parsed.success) return c.json({ error: 'invalid', message: parsed.error.issues[0]?.message ?? 'Invalid input' }, 400)
         try {
-          const s = await calls.start(parsed.data)
+          const s = await calls.start({ ...parsed.data, seller })
           return c.json(copilotView(s), 201)
         } catch (e) {
           return c.json({ error: 'recall_failed', message: e instanceof Error ? e.message : String(e) }, 502)
@@ -82,16 +133,18 @@ export function salesRoutes(calls: Calls, webDist = process.env.WEB_DIST || path
       method: 'GET',
       ...open,
       handler: async (c) => {
-        if (!isOwner(c)) return denied(c)
-        return c.json(calls.list().map((s) => ({ id: s.id, prospect: s.prospect, status: s.status, startedAt: s.startedAt, meetingUrl: s.meetingUrl })))
+        const seller = sellerFrom(c)
+        if (!seller) return denied(c)
+        return c.json(calls.list(seller).map((s) => ({ id: s.id, prospect: s.prospect, seller: s.seller.name, status: s.status, startedAt: s.startedAt, meetingUrl: s.meetingUrl })))
       },
     }),
     registerApiRoute('/calls/:id', {
       method: 'GET',
       ...open,
       handler: async (c) => {
-        if (!isOwner(c)) return denied(c)
-        const s = calls.get(c.req.param('id'))
+        const seller = sellerFrom(c)
+        if (!seller) return denied(c)
+        const s = ownCall(c, calls, seller)
         return s ? c.json(copilotView(s)) : notFound(c)
       },
     }),
@@ -99,29 +152,33 @@ export function salesRoutes(calls: Calls, webDist = process.env.WEB_DIST || path
       method: 'GET',
       ...open,
       handler: async (c) => {
-        if (!isOwner(c)) return denied(c)
-        const id = c.req.param('id')
-        return calls.get(id) ? sse(c, calls, id, copilotView) : notFound(c)
+        const seller = sellerFrom(c)
+        if (!seller) return denied(c)
+        const s = ownCall(c, calls, seller)
+        return s ? sse(c, calls, s.id, copilotView) : notFound(c)
       },
     }),
     registerApiRoute('/calls/:id/math', {
       method: 'POST',
       ...open,
       handler: async (c) => {
-        if (!isOwner(c)) return denied(c)
+        const seller = sellerFrom(c)
+        if (!seller) return denied(c)
+        const own = ownCall(c, calls, seller)
+        if (!own) return notFound(c)
         const body = (await c.req.json().catch(() => ({}))) as { show?: boolean }
-        const s = calls.setShowMath(c.req.param('id'), !!body.show)
-        return s ? c.json({ showMath: s.showMath }) : notFound(c)
+        return c.json({ showMath: calls.setShowMath(own.id, !!body.show)!.showMath })
       },
     }),
     registerApiRoute('/calls/:id/leave', {
       method: 'POST',
       ...open,
       handler: async (c) => {
-        if (!isOwner(c)) return denied(c)
-        const id = c.req.param('id')
-        if (!calls.get(id)) return notFound(c)
-        await calls.leave(id)
+        const seller = sellerFrom(c)
+        if (!seller) return denied(c)
+        const own = ownCall(c, calls, seller)
+        if (!own) return notFound(c)
+        await calls.leave(own.id)
         return c.json({ ok: true })
       },
     }),

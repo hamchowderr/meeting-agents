@@ -8,10 +8,12 @@ prospect's own numbers on the bot's camera.
 
 ## How a call works
 
-1. Open `https://<domain>/app/?key=<OWNER_KEY>`, paste a Zoom or Meet link, press **Send the bot**.
+1. Open `https://<domain>/app/`, sign in with the code emailed to you (sellers are listed in
+   `SELLERS`; Tylan and Ric each see only their own calls, an admin sees all), paste a Zoom or
+   Meet link, press **Send the bot**.
 2. Recall sends "Otaku notes" into the meeting with low-latency streaming transcription
    (1-3 s, English). Each finished line is posted to `/recall/transcript/:id`.
-3. After each burst of lines, the `sales-call` agent (Claude Haiku 5.5, structured output)
+3. After each burst of lines, the `sales-call` agent (Claude Haiku 5.5, structured output; AIMock in tests)
    reports what the new lines add: numbers the prospect said, goal, leak, money question,
    the step, and the next question. All math is done in `src/sales/levers.ts`, never by the model.
 4. The co-pilot (`/app/live/:id`) updates live over server-sent events.
@@ -31,14 +33,17 @@ Doltgres in Phase 2.
 | `src/sales/calls.ts` | Live calls: bot start, utterances, one extraction pass at a time |
 | `src/mastra/routes.ts` | Owner API, prospect screen stream, Recall webhook, web app files |
 | `src/mastra/tools/recall.ts` | Tools so other agents can send the bot to a meeting |
-| `web/` | Vite + React + Tailwind: start page, co-pilot, bot screen |
+| `src/auth/` | Seller sign-in: emailed code through the hub, signed cookie |
+| `src/sales/model.ts` | The model switch: Claude Haiku 5.5, or AIMock with `USE_AIMOCK=true` |
+| `fixtures/` | AIMock answers for the sales-call agent |
+| `web/` | Vite + React + Tailwind: sign-in, start page, co-pilot, bot screen |
 
 ## Run
 
 ```bash
 npm ci
 npm run build:web && npx tsx scripts/demo.ts   # scripted call, no Recall or model needed
-npm test
+npm test                                        # starts AIMock (fixtures/), runs vitest
 npm run typecheck
 npm run build                                   # web app + Mastra server into .mastra/output
 ```
@@ -50,7 +55,9 @@ npm run build                                   # web app + Mastra server into .
 ## Environment
 
 See `.env.example`. In production the values come from Infisical (Otaku Solutions,
-Production, `/otaku`): `RECALL_API_KEY`, `RECALL_WEBHOOK_SECRET`, `ANTHROPIC_API_KEY`, `OWNER_KEY`.
+Production, `/otaku`): `RECALL_API_KEY`, `ANTHROPIC_API_KEY`, and the hub's `FLUENTCRM_AUTH` for sign-in
+codes (Client Desk's `DESK_FLUENTCRM_AUTH`). `SELLERS` is not a secret. Sessions are signed with a key
+derived from `RECALL_API_KEY` unless `SESSION_SECRET` is set. `RECALL_WEBHOOK_SECRET` is optional.
 
 ## Meeting platforms
 

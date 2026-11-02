@@ -7,6 +7,8 @@ import { promptFor } from '../src/sales/extract'
 import { type Extraction, applyExtraction, prospectView } from '../src/sales/state'
 
 const ask = { question: 'q', reason: 'r', alternates: [] }
+const TYLAN = { name: 'Tylan Miller', email: 'tylan@otakusolutions.io' }
+const sent: { to: string; code: string }[] = []
 const none: Extraction = { numbers: [], goal: null, leak: null, coldQuotes: null, adminHoursPerWeek: null, moneyQuestion: null, step: 0, askNext: ask }
 
 function fakeRecall() {
@@ -30,21 +32,59 @@ describe('a call, end to end through the API', () => {
   const extractor = vi.fn(async (_s: unknown, _from: number): Promise<Extraction> => none)
 
   beforeEach(() => {
-    process.env.OWNER_KEY = 'owner-key'
+    process.env.SELLERS = 'Tylan Miller <tylan@otakusolutions.io> admin, Ric Forbes <ric@example.com>'
+    process.env.RECALL_API_KEY = 'test-recall-key'
     delete process.env.RECALL_WEBHOOK_SECRET
     recall = fakeRecall()
     extractor.mockReset()
-    calls = new Calls({ recall, extractor, publicUrl: 'https://agents.example', botName: 'Otaku notes', sellerName: 'Tylan', debounceMs: 0 })
+    calls = new Calls({ recall, extractor, publicUrl: 'https://agents.example', botName: 'Otaku notes', debounceMs: 0 })
+    sent.length = 0
     app = new Hono()
-    for (const r of salesRoutes(calls, '/nonexistent')) app.on(r.method === "ALL" ? ["GET", "POST"] : [r.method], r.path, (r as unknown as { handler: never }).handler)
+    for (const r of salesRoutes(calls, { webDist: '/nonexistent', sendCode: async (to, code) => void sent.push({ to: to.email, code }) })) app.on(r.method === "ALL" ? ["GET", "POST"] : [r.method], r.path, (r as unknown as { handler: never }).handler)
   })
 
-  const owner = { authorization: 'Bearer owner-key', 'content-type': 'application/json' }
+  let owner: Record<string, string> = {}
 
-  it('refuses owner routes without the key, and when no key is configured', async () => {
+  async function signIn(email: string): Promise<Record<string, string>> {
+    await app.request('/auth/code', { method: 'POST', body: JSON.stringify({ email }) })
+    const code = sent.find((m) => m.to === email)!.code
+    const res = await app.request('/auth/verify', { method: 'POST', body: JSON.stringify({ email, code }) })
+    expect(res.status).toBe(200)
+    return { cookie: res.headers.get('set-cookie')!.split(';')[0]!, 'content-type': 'application/json' }
+  }
+
+  beforeEach(async () => {
+    owner = await signIn('tylan@otakusolutions.io')
+  })
+
+  it('signs in only listed sellers, with the emailed code, once', async () => {
     expect((await app.request('/calls', { method: 'POST', body: '{}' })).status).toBe(401)
-    delete process.env.OWNER_KEY
-    expect((await app.request('/calls', { headers: { authorization: 'Bearer ' } })).status).toBe(401)
+    sent.length = 0
+    await app.request('/auth/code', { method: 'POST', body: JSON.stringify({ email: 'stranger@example.com' }) })
+    expect(sent).toEqual([])
+    await app.request('/auth/code', { method: 'POST', body: JSON.stringify({ email: 'RIC@example.com' }) })
+    const code = sent[0]!.code
+    const wrong = await app.request('/auth/verify', { method: 'POST', body: JSON.stringify({ email: 'ric@example.com', code: code === '000000' ? '111111' : '000000' }) })
+    expect(wrong.status).toBe(401)
+    const ok = await app.request('/auth/verify', { method: 'POST', body: JSON.stringify({ email: 'ric@example.com', code }) })
+    expect(await ok.json()).toEqual({ name: 'Ric Forbes', email: 'ric@example.com', admin: false })
+    const again = await app.request('/auth/verify', { method: 'POST', body: JSON.stringify({ email: 'ric@example.com', code }) })
+    expect(again.status).toBe(401)
+  })
+
+  it("keeps each seller's calls to them; an admin sees all", async () => {
+    const ric = await signIn('ric@example.com')
+    const res = await app.request('/calls', { method: 'POST', headers: ric, body: JSON.stringify({ meetingUrl: 'https://meet.google.com/abc-defg-hij', prospect: 'Ric prospect' }) })
+    const ricCall = (await res.json()) as { id: string; seller: { name: string } }
+    expect(ricCall.seller.name).toBe('Ric Forbes')
+    await app.request('/calls', { method: 'POST', headers: owner, body: JSON.stringify({ meetingUrl: 'https://us02web.zoom.us/j/9' }) })
+    const ricList = (await (await app.request('/calls', { headers: ric })).json()) as unknown[]
+    const tylanList = (await (await app.request('/calls', { headers: owner })).json()) as unknown[]
+    expect(ricList).toHaveLength(1)
+    expect(tylanList).toHaveLength(2)
+    const tylanCallId = calls.list().find((s) => s.seller.name === 'Tylan Miller')!.id
+    expect((await app.request(`/calls/${tylanCallId}`, { headers: ric })).status).toBe(404)
+    expect((await app.request(`/calls/${ricCall.id}`, { headers: owner })).status).toBe(200)
   })
 
   it('starts a bot with a signed webhook and the camera page, then turns transcript into state', async () => {
@@ -82,7 +122,7 @@ describe('a call, end to end through the API', () => {
   })
 
   it('serves the prospect view only with the screen token', async () => {
-    const call = await calls.start({ meetingUrl: 'https://meet.google.com/abc-defg-hij' })
+    const call = await calls.start({ meetingUrl: 'https://meet.google.com/abc-defg-hij', seller: TYLAN })
     expect((await app.request(`/screen/${call.id}/events?t=nope`)).status).toBe(404)
     const t = new URL(calls.screenUrl(call.id)).searchParams.get('t')!
     const ctrl = new AbortController()
@@ -90,7 +130,7 @@ describe('a call, end to end through the API', () => {
     expect(res.headers.get('content-type')).toBe('text/event-stream')
     const reader = res.body!.getReader()
     const first = new TextDecoder().decode((await reader.read()).value)
-    expect(JSON.parse(first.replace(/^data: /, ''))).toMatchObject({ showMath: false, said: {} })
+    expect(JSON.parse(first.replace(/^data: /, ''))).toMatchObject({ seller: 'Tylan', showMath: false, said: {} })
     ctrl.abort()
   })
 
@@ -101,16 +141,16 @@ describe('a call, end to end through the API', () => {
 })
 
 describe('applying what the model found', () => {
-  const base = new Calls({ recall: fakeRecall(), extractor: async () => none, publicUrl: 'x', botName: 'b', sellerName: 'Tylan' })
+  const base = new Calls({ recall: fakeRecall(), extractor: async () => none, publicUrl: 'x', botName: 'b' })
   it('ignores out-of-range numbers and never moves the step backwards', async () => {
-    const s = await base.start({ meetingUrl: 'https://meet.google.com/abc' })
+    const s = await base.start({ meetingUrl: 'https://meet.google.com/abc', seller: TYLAN })
     const a = applyExtraction({ ...s, step: 3 }, { ...none, numbers: [{ lever: 'conv', value: 20, quote: '20%' }, { lever: 'margin', value: 0.25, quote: '25 cents' }], step: 1 }, 5)
     expect(a.said.conv).toBeUndefined()
     expect(a.said.margin?.value).toBe(0.25)
     expect(a.step).toBe(3)
   })
   it('lifts the leak lever when the money question is asked', async () => {
-    const s = await base.start({ meetingUrl: 'https://meet.google.com/abc' })
+    const s = await base.start({ meetingUrl: 'https://meet.google.com/abc', seller: TYLAN })
     const a = applyExtraction(s, { ...none, leak: { lever: 'conv', evidence: 'voicemail after five' }, moneyQuestion: 'what would that be worth?', step: 3 }, 9)
     expect(a.liftLever).toBe('conv')
     expect(a.moneyQuestion?.text).toMatch(/worth/)

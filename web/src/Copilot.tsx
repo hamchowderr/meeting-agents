@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { LEVER_INFO, fmt, money } from '../../src/sales/levers'
-import { type CopilotView, api, ownerKey, useLive } from './api'
+import { type CopilotView, api, useLive } from './api'
 
 const STEPS = ['Objective', 'Why it matters', 'Find the leak', 'Solution', 'Offer']
 const FIT = { strong: ['Strong fit', 'bg-good text-white'], possible: ['Possible', 'bg-[#fdf0c8] text-[#7a5600]'], ask: ['Ask first', 'bg-mist text-soft'] } as const
@@ -12,14 +12,20 @@ function clock(startedAt: number, now: number) {
 
 /** The seller's private screen: where the call is, what to ask, what each fix is worth. */
 export function Copilot({ id }: { id: string }) {
-  const { data: v, connected } = useLive<CopilotView>(`/calls/${id}/events?key=${encodeURIComponent(ownerKey())}`)
+  const { data: v, connected } = useLive<CopilotView>(`/calls/${id}/events`)
   const [now, setNow] = useState(Date.now())
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 1000)
     return () => clearInterval(t)
   }, [])
 
-  if (!v) return <p className="p-8 text-soft">{connected ? 'Loading…' : 'Connecting to the call…'}</p>
+  if (!v)
+    return (
+      <p className="p-8 text-soft">
+        {connected ? 'Loading…' : 'Connecting to the call… '}
+        {!connected && <a href="/app/" className="font-bold text-rust">Sign in</a>}
+      </p>
+    )
 
   const sellerShare = talkShare(v)
   const allSaid = v.board.every((b) => b.said)

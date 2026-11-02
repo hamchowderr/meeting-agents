@@ -7,7 +7,8 @@ import { salesRoutes } from './routes'
 /**
  * Meeting agents. One Mastra server (Hono) for Coolify:
  * - /app/*            the web app: start page, co-pilot (/app/live/:id), bot camera (/app/screen/:id)
- * - /calls/*          owner API (OWNER_KEY)
+ * - /auth/*           seller sign-in: a code emailed through the hub, then a signed cookie
+ * - /calls/*          seller API: each seller sees their own calls, admins see all
  * - /screen/:id/*     the prospect view, for the bot's camera page (per-call token)
  * - /recall/*         Recall's real-time transcript webhook (per-call secret + Recall signature)
  */
@@ -16,7 +17,6 @@ const publicUrl = (process.env.PUBLIC_URL || `http://localhost:${process.env.POR
 export const calls = new Calls({
   recall: recallFromEnv(),
   extractor: modelExtractor(),
-  sellerName: process.env.SELLER_NAME ?? 'Tylan',
   publicUrl,
   botName: process.env.BOT_NAME || 'Otaku notes',
 })

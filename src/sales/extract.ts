@@ -1,9 +1,8 @@
 import { Agent } from '@mastra/core/agent'
 import { z } from 'zod'
 import { LEVERS } from './levers'
+import { salesCallModel } from './model'
 import { type CallState, type Extraction, STEPS } from './state'
-
-export const EXTRACT_MODEL = process.env.SALES_CALL_MODEL || 'anthropic/claude-haiku-5-5'
 
 const lever = z.enum(LEVERS)
 
@@ -58,7 +57,8 @@ export const salesCallAgent = new Agent({
   name: 'Sales call co-pilot',
   description: 'Picks the profit-formula numbers, the goal, the leak and the next question out of a live sales call.',
   instructions: INSTRUCTIONS,
-  model: EXTRACT_MODEL,
+  // Resolved per call, so USE_AIMOCK set by a test or demo takes effect.
+  model: () => salesCallModel(),
 })
 
 /** What we tell the model: known state plus the newest lines, speakers labelled. */
@@ -84,7 +84,7 @@ export function promptFor(s: CallState, fromIndex: number): string {
 }
 
 export function isSeller(u: { speaker: string; isHost: boolean }, sellerName: string): boolean {
-  // The seller is matched by first name (SELLER_NAME); with none set, the meeting host is the seller.
+  // The seller is matched by first name in the meeting; with no name, the meeting host is the seller.
   const first = sellerName.trim().split(/\s+/)[0]?.toLowerCase()
   if (!first) return u.isHost
   return u.speaker.toLowerCase().includes(first)

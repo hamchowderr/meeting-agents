@@ -5,6 +5,7 @@
  */
 import { serve } from '@hono/node-server'
 import { Hono } from 'hono'
+import { sessionCookie } from '../src/auth/session'
 import { salesRoutes } from '../src/mastra/routes'
 import type { RecallClient } from '../src/recall/client'
 import { Calls } from '../src/sales/calls'
@@ -24,16 +25,22 @@ const SCRIPT: [string, string, Partial<Extraction>][] = [
 const none: Extraction = { numbers: [], goal: null, leak: null, coldQuotes: null, adminHoursPerWeek: null, moneyQuestion: null, step: 0, askNext: ask('', '') }
 let n = 0
 const recall = { createBot: async () => ({ id: 'demo-bot' }), leaveCall: async () => ({}) } as unknown as RecallClient
-const calls = new Calls({ recall, extractor: async () => ({ ...none, ...SCRIPT[n - 1]![2] }), publicUrl: 'http://localhost:4111', botName: 'Otaku notes', sellerName: 'Tylan', debounceMs: 50 })
-process.env.OWNER_KEY ||= 'demo'
+const calls = new Calls({ recall, extractor: async () => ({ ...none, ...SCRIPT[n - 1]![2] }), publicUrl: 'http://localhost:4111', botName: 'Otaku notes', debounceMs: 50 })
+process.env.RECALL_API_KEY ||= 'demo-signing-material'
+process.env.SELLERS ||= 'Tylan Miller <tylan@otakusolutions.io> admin'
 
 const app = new Hono()
 for (const r of salesRoutes(calls)) app.on(r.method === 'ALL' ? ['GET', 'POST'] : [r.method], r.path, (r as unknown as { handler: never }).handler)
+// Demo only: skip the emailed code.
+app.get('/demo-login', (c) => {
+  c.header('set-cookie', sessionCookie('tylan@otakusolutions.io', false))
+  return c.redirect(c.req.query('to') ?? '/app/')
+})
 serve({ fetch: app.fetch, port: 4111 })
 
-const call = await calls.start({ meetingUrl: 'https://meet.google.com/demo-call', prospect: 'Ridge Flooring' })
+const call = await calls.start({ meetingUrl: 'https://meet.google.com/demo-call', prospect: 'Ridge Flooring', seller: { name: 'Tylan Miller', email: 'tylan@otakusolutions.io' } })
 calls.setShowMath(call.id, true)
-console.log(`co-pilot: http://localhost:4111/app/live/${call.id}?key=${process.env.OWNER_KEY}`)
+console.log(`co-pilot: http://localhost:4111/demo-login?to=/app/live/${call.id}`)
 console.log(`bot screen: ${calls.screenUrl(call.id)}`)
 const steps = Number(process.env.DEMO_STEPS ?? SCRIPT.length)
 for (const [who, text] of SCRIPT.slice(0, steps)) {

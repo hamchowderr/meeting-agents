@@ -9,11 +9,13 @@ services:
       - PUBLIC_URL=${PUBLIC_URL}
       - RECALL_API_KEY=${RECALL_API_KEY}
       - RECALL_REGION=${RECALL_REGION:-us-west-2}
-      # Recall dashboard > API keys > workspace verification secret (whsec_...).
+      # Optional: Recall's workspace verification secret (whsec_...). Each bot's webhook
+      # URL already carries its own random secret; with this set, Recall's signature is checked too.
       - RECALL_WEBHOOK_SECRET=${RECALL_WEBHOOK_SECRET:-}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
-      # Opens the start page and co-pilot: https://<domain>/app/?key=<OWNER_KEY>
-      - OWNER_KEY=${OWNER_KEY}
-      - SELLER_NAME=${SELLER_NAME:-Tylan}
+      # Who can sign in (a code is emailed through the hub). "Name <email>", comma separated; "admin" sees all calls.
+      - SELLERS=${SELLERS}
+      # Hub WordPress application password (user:pass) for sending sign-in codes; same as Client Desk's.
+      - FLUENTCRM_AUTH=${FLUENTCRM_AUTH}
       - BOT_NAME=${BOT_NAME:-Otaku notes}
     restart: unless-stopped

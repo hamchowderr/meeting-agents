@@ -11,15 +11,19 @@
     "build:web": "vite build --config web/vite.config.ts",
     "start": "node .mastra/output/index.mjs",
     "typecheck": "tsc && tsc -p web",
-    "test": "vitest run",
-    "demo": "npm run build:web && tsx scripts/demo.ts"
+    "test": "start-server-and-test aimock http-get://127.0.0.1:4010/health test:unit",
+    "demo": "npm run build:web && tsx scripts/demo.ts",
+    "test:unit": "USE_AIMOCK=true vitest run",
+    "aimock": "llmock -p 4010 -h 127.0.0.1 -f ./fixtures --validate-on-load --strict"
   },
   "dependencies": {
+    "@ai-sdk/openai": "^4.0.106",
     "@mastra/core": "^1.81.0",
     "hono": "^4.13.16",
     "zod": "^4.6.7"
   },
   "devDependencies": {
+    "@copilotkit/aimock": "^1.47.0",
     "@hono/node-server": "^1.19.18",
     "@tailwindcss/vite": "^4.3.3",
     "@types/node": "^26.6.6",
@@ -29,6 +33,7 @@
     "mastra": "^1.37.0",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
+    "start-server-and-test": "^3.0.13",
     "tailwindcss": "^4.3.3",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2",

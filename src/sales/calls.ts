@@ -24,8 +24,6 @@ export type CallsOptions = {
   extractor: Extractor
   publicUrl: string
   botName: string
-  /** The seller's name as it shows in the meeting (SELLER_NAME); their lines are labelled SELLER. */
-  sellerName: string
   /** Wait this long after the last line before asking the model, so one pass covers a burst. */
   debounceMs?: number
 }
@@ -39,7 +37,7 @@ export class Calls {
   private calls = new Map<string, Entry>()
   constructor(private readonly opts: CallsOptions) {}
 
-  async start(input: { meetingUrl: string; prospect?: string | null }): Promise<CallState> {
+  async start(input: { meetingUrl: string; prospect?: string | null; seller: { name: string; email: string } }): Promise<CallState> {
     if (!this.opts.recall) throw new Error('RECALL_API_KEY is not set')
     const id = crypto.randomUUID()
     const entry: Entry = {
@@ -48,6 +46,7 @@ export class Calls {
         botId: null,
         meetingUrl: input.meetingUrl,
         prospect: input.prospect?.trim() || null,
+        seller: { name: input.seller.name, email: input.seller.email },
         status: 'joining',
         startedAt: Date.now(),
         transcript: [],
@@ -76,7 +75,7 @@ export class Calls {
         botName: this.opts.botName,
         transcriptWebhookUrl: `${this.opts.publicUrl}/recall/transcript/${id}?s=${entry.hookSecret}`,
         cameraPageUrl: this.screenUrl(id),
-        metadata: { callId: id, agent: 'sales-call' },
+        metadata: { callId: id, agent: 'sales-call', seller: input.seller.email },
       })
       this.update(id, { botId: bot.id })
     } catch (e) {
@@ -95,8 +94,12 @@ export class Calls {
     return this.calls.get(id)?.state
   }
 
-  list(): CallState[] {
-    return [...this.calls.values()].map((e) => e.state).sort((a, b) => b.startedAt - a.startedAt)
+  /** Calls this seller may see: their own, or everyone's for an admin. */
+  list(viewer?: { email: string; admin: boolean }): CallState[] {
+    return [...this.calls.values()]
+      .map((e) => e.state)
+      .filter((s) => !viewer || viewer.admin || s.seller.email === viewer.email)
+      .sort((a, b) => b.startedAt - a.startedAt)
   }
 
   checkHook(id: string, secret: string | undefined): boolean {
@@ -139,7 +142,8 @@ export class Calls {
   addUtterance(id: string, u: Utterance) {
     const e = this.calls.get(id)
     if (!e) return
-    const line = { ...u, seller: isSeller(u, this.opts.sellerName) }
+    // Their lines are labelled SELLER for the model, matched by the seller's name in the meeting.
+    const line = { ...u, seller: isSeller(u, e.state.seller.name) }
     this.update(id, { transcript: [...e.state.transcript, line], status: e.state.status === 'joining' ? 'live' : e.state.status })
     if (e.timer) clearTimeout(e.timer)
     e.timer = setTimeout(() => {

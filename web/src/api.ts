@@ -9,6 +9,7 @@ export type CopilotView = {
   botId: string | null
   meetingUrl: string
   prospect: string | null
+  seller: { name: string; email: string }
   status: 'joining' | 'live' | 'ended' | 'failed'
   startedAt: number
   transcript: Utterance[]
@@ -27,6 +28,7 @@ export type CopilotView = {
 }
 
 export type ProspectView = {
+  seller: string
   prospect: string | null
   showMath: boolean
   said: Partial<Record<Lever, Said>>
@@ -35,37 +37,12 @@ export type ProspectView = {
   liftLever: Lever | null
 }
 
-const KEY = 'otaku-notes-key'
-
-/** The owner key: from ?key= once (then stripped from the address bar), else from this browser. */
-export function ownerKey(): string {
-  const url = new URL(location.href)
-  const fromUrl = url.searchParams.get('key')
-  if (fromUrl) {
-    try {
-      localStorage.setItem(KEY, fromUrl)
-    } catch {}
-    url.searchParams.delete('key')
-    history.replaceState(null, '', url)
-    return fromUrl
-  }
-  try {
-    return localStorage.getItem(KEY) ?? ''
-  } catch {
-    return ''
-  }
-}
-
-export function saveKey(k: string) {
-  try {
-    localStorage.setItem(KEY, k)
-  } catch {}
-}
+export type Me = { name: string; email: string; admin: boolean }
 
 export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   const res = await fetch(path, {
     ...init,
-    headers: { 'content-type': 'application/json', authorization: `Bearer ${ownerKey()}`, ...(init.headers ?? {}) },
+    headers: { 'content-type': 'application/json', ...(init.headers ?? {}) },
   })
   const body = await res.json().catch(() => ({}))
   if (!res.ok) throw new Error(body.message ?? `Request failed (${res.status})`)
