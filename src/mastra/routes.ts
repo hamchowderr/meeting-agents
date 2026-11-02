@@ -56,6 +56,8 @@ function sse(c: Context, calls: Calls, id: string, view: (s: CallState) => unkno
 const startInput = z.object({
   meetingUrl: z.string().url().refine((u) => /zoom\.us|meet\.google\.com|teams\.microsoft\.com|teams\.live\.com/.test(u), 'Zoom, Google Meet or Teams link'),
   prospect: z.string().max(120).nullish(),
+  /** What the bot is called in the meeting; blank means "<first name>'s notetaker". */
+  botName: z.string().trim().max(100).nullish(),
 })
 
 export function salesRoutes(calls: Calls, opts: { webDist?: string; sendCode?: SendCode } = {}) {

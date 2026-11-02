@@ -18,7 +18,7 @@ export const calls = new Calls({
   recall: recallFromEnv(),
   extractor: modelExtractor(),
   publicUrl,
-  botName: process.env.BOT_NAME || 'Otaku notes',
+  botName: process.env.BOT_NAME || undefined,
 })
 
 export const mastra = new Mastra({

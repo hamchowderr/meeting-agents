@@ -9,15 +9,16 @@ import type { Calls } from '../../sales/calls'
 export function recallTools(calls: Calls) {
   const joinSalesCall = createTool({
     id: 'join-sales-call',
-    description: 'Send the Otaku notes bot to a Zoom, Google Meet or Teams call and start the live sales co-pilot.',
+    description: 'Send the notetaker bot to a Zoom, Google Meet or Teams call and start the live sales co-pilot.',
     inputSchema: z.object({
       meetingUrl: z.string().url(),
       prospect: z.string().optional(),
+      botName: z.string().max(100).optional().describe('Name the bot joins with; defaults to "<first name>\'s notetaker"'),
       seller: z.object({ name: z.string(), email: z.string().email() }).describe('Who runs the call; their screen gets it'),
     }),
     outputSchema: z.object({ callId: z.string(), botId: z.string().nullable(), status: z.string() }),
-    execute: async ({ meetingUrl, prospect, seller }) => {
-      const s = await calls.start({ meetingUrl, prospect, seller })
+    execute: async ({ meetingUrl, prospect, botName, seller }) => {
+      const s = await calls.start({ meetingUrl, prospect, botName, seller })
       return { callId: s.id, botId: s.botId, status: s.status }
     },
   })

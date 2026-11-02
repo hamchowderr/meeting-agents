@@ -24,7 +24,7 @@ export function fluentCrmMailer(baseUrl: string, auth: string, fetchImpl: typeof
     }
     await api('POST', `/subscribers/${id}/emails/send`, {
       campaign: {
-        email_subject: `${code} is your Otaku notes sign-in code`,
+        email_subject: `${code} is your sales co-pilot sign-in code`,
         email_body: `<p>Your sign-in code is:</p><p style="font-size:28px;font-weight:700;letter-spacing:4px">${code}</p><p>It works once and expires in 10 minutes. If you didn't try to sign in, ignore this email.</p>`,
       },
     })

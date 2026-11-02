@@ -11,7 +11,7 @@ prospect's own numbers on the bot's camera.
 1. Open `https://<domain>/app/`, sign in with the code emailed to you (sellers are listed in
    `SELLERS`; Tylan and Ric each see only their own calls, an admin sees all), paste a Zoom or
    Meet link, press **Send the bot**.
-2. Recall sends "Otaku notes" into the meeting with low-latency streaming transcription
+2. Recall sends the bot into the meeting under the name the seller picks (default "<first name>'s notetaker") with low-latency streaming transcription
    (1-3 s, English). Each finished line is posted to `/recall/transcript/:id`.
 3. After each burst of lines, the `sales-call` agent (Claude Haiku 5.5, structured output; AIMock in tests)
    reports what the new lines add: numbers the prospect said, goal, leak, money question,

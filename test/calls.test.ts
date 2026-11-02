@@ -37,7 +37,7 @@ describe('a call, end to end through the API', () => {
     delete process.env.RECALL_WEBHOOK_SECRET
     recall = fakeRecall()
     extractor.mockReset()
-    calls = new Calls({ recall, extractor, publicUrl: 'https://agents.example', botName: 'Otaku notes', debounceMs: 0 })
+    calls = new Calls({ recall, extractor, publicUrl: 'https://agents.example', debounceMs: 0 })
     sent.length = 0
     app = new Hono()
     for (const r of salesRoutes(calls, { webDist: '/nonexistent', sendCode: async (to, code) => void sent.push({ to: to.email, code }) })) app.on(r.method === "ALL" ? ["GET", "POST"] : [r.method], r.path, (r as unknown as { handler: never }).handler)
@@ -70,6 +70,19 @@ describe('a call, end to end through the API', () => {
     expect(await ok.json()).toEqual({ name: 'Ric Forbes', email: 'ric@example.com', admin: false })
     const again = await app.request('/auth/verify', { method: 'POST', body: JSON.stringify({ email: 'ric@example.com', code }) })
     expect(again.status).toBe(401)
+  })
+
+  it('joins under the name the seller picks, or "<first name>\'s notetaker"', async () => {
+    const ric = await signIn('ric@example.com')
+    await app.request('/calls', { method: 'POST', headers: ric, body: JSON.stringify({ meetingUrl: 'https://meet.google.com/abc-defg-hij' }) })
+    expect(recall.createBot.mock.calls[0]![0]).toMatchObject({ botName: "Ric's notetaker" })
+    const res = await app.request('/calls', { method: 'POST', headers: owner, body: JSON.stringify({ meetingUrl: 'https://us02web.zoom.us/j/9', botName: '  Ridge Notes ' }) })
+    expect(recall.createBot.mock.calls[1]![0]).toMatchObject({ botName: 'Ridge Notes' })
+    const call = (await res.json()) as { botName: string }
+    expect(call.botName).toBe('Ridge Notes')
+    expect(prospectView(calls.get((call as unknown as { id: string }).id)!).botName).toBe('Ridge Notes')
+    const long = await app.request('/calls', { method: 'POST', headers: owner, body: JSON.stringify({ meetingUrl: 'https://us02web.zoom.us/j/9', botName: 'x'.repeat(101) }) })
+    expect(long.status).toBe(400)
   })
 
   it("keeps each seller's calls to them; an admin sees all", async () => {

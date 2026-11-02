@@ -10,6 +10,7 @@ export type CopilotView = {
   meetingUrl: string
   prospect: string | null
   seller: { name: string; email: string }
+  botName: string
   status: 'joining' | 'live' | 'ended' | 'failed'
   startedAt: number
   transcript: Utterance[]
@@ -29,6 +30,7 @@ export type CopilotView = {
 
 export type ProspectView = {
   seller: string
+  botName: string
   prospect: string | null
   showMath: boolean
   said: Partial<Record<Lever, Said>>

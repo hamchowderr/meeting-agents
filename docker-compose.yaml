@@ -17,5 +17,6 @@ services:
       - SELLERS=${SELLERS}
       # Hub WordPress application password (user:pass) for sending sign-in codes; same as Client Desk's.
       - FLUENTCRM_AUTH=${FLUENTCRM_AUTH}
-      - BOT_NAME=${BOT_NAME:-Otaku notes}
+      # Optional: one bot name for everyone. Unset, each seller names their own bot (default "<first name>'s notetaker").
+      - BOT_NAME=${BOT_NAME:-}
     restart: unless-stopped

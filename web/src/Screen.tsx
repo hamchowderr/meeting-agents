@@ -20,16 +20,16 @@ export function Screen({ id }: { id: string }) {
   return (
     <div className="h-screen w-screen overflow-hidden bg-bg">
       <div className="origin-top-left" style={{ width: 1280, height: 720, transform: `scale(${scale})` }}>
-        {!v || !v.showMath ? <Idle seller={v?.seller} /> : <Formula v={v} />}
+        {!v || !v.showMath ? <Idle seller={v?.seller} botName={v?.botName} /> : <Formula v={v} />}
       </div>
     </div>
   )
 }
 
-function Idle({ seller }: { seller?: string }) {
+function Idle({ seller, botName }: { seller?: string; botName?: string }) {
   return (
     <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
-      <p className="text-[15px] font-extrabold uppercase tracking-[.14em] text-rust">Otaku notes</p>
+      <p className="text-[15px] font-extrabold uppercase tracking-[.14em] text-rust">{botName ?? 'Notetaker'}</p>
       <p className="font-display text-[52px] leading-tight">Taking notes for {seller ?? 'Otaku Solutions'}</p>
       <p className="text-xl text-soft">This call is recorded. Ask {seller ?? 'your host'} to remove me at any time.</p>
     </div>

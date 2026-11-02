@@ -44,7 +44,7 @@ function SignIn({ onIn }: { onIn: (m: Me) => void }) {
   return (
     <main className="mx-auto flex min-h-screen max-w-sm flex-col justify-center gap-5 px-4">
       <div>
-        <p className="text-xs font-extrabold uppercase tracking-widest text-rust">Otaku notes</p>
+        <p className="text-xs font-extrabold uppercase tracking-widest text-rust">Sales co-pilot</p>
         <h1 className="font-display text-4xl">Sign in</h1>
       </div>
       <form onSubmit={submit} className="flex flex-col gap-3">
@@ -54,7 +54,7 @@ function SignIn({ onIn }: { onIn: (m: Me) => void }) {
           <>
             <label className="text-sm font-bold" htmlFor="code">Code from your email</label>
             <input id="code" inputMode="numeric" autoComplete="one-time-code" required value={code} onChange={(e) => setCode(e.target.value)} className={`${field} tracking-[.3em]`} />
-            <p className="text-sm text-soft">If this email can use Otaku notes, a 6-digit code is on its way.</p>
+            <p className="text-sm text-soft">If this email can use the sales co-pilot, a 6-digit code is on its way.</p>
           </>
         )}
         {error && <p className="text-sm font-bold text-rust">{error}</p>}
@@ -67,6 +67,7 @@ function SignIn({ onIn }: { onIn: (m: Me) => void }) {
 function SendBot({ me }: { me: Me }) {
   const [url, setUrl] = useState('')
   const [prospect, setProspect] = useState('')
+  const [botName, setBotName] = useState(() => savedBotName() ?? `${me.name.split(' ')[0]}'s notetaker`)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [calls, setCalls] = useState<CallRow[]>([])
@@ -80,7 +81,8 @@ function SendBot({ me }: { me: Me }) {
     setBusy(true)
     setError(null)
     try {
-      const call = await api<{ id: string }>('/calls', { method: 'POST', body: JSON.stringify({ meetingUrl: url.trim(), prospect: prospect.trim() || null }) })
+      const call = await api<{ id: string }>('/calls', { method: 'POST', body: JSON.stringify({ meetingUrl: url.trim(), prospect: prospect.trim() || null, botName: botName.trim() || null }) })
+      saveBotName(botName.trim())
       location.href = `/app/live/${call.id}`
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
@@ -92,9 +94,9 @@ function SendBot({ me }: { me: Me }) {
     <main className="mx-auto flex min-h-screen max-w-xl flex-col gap-8 px-4 py-12">
       <header className="flex items-start justify-between gap-4">
         <div>
-          <p className="text-xs font-extrabold uppercase tracking-widest text-rust">Otaku notes</p>
+          <p className="text-xs font-extrabold uppercase tracking-widest text-rust">Sales co-pilot</p>
           <h1 className="font-display text-4xl leading-tight">Send the co-pilot to a call</h1>
-          <p className="mt-2 text-soft">Paste a Zoom or Google Meet link. The bot joins as "Otaku notes" and your live screen opens here.</p>
+          <p className="mt-2 text-soft">Paste a Zoom or Google Meet link. The bot joins under the name you choose and your live screen opens here.</p>
         </div>
         <button
           onClick={() => api('/auth/logout', { method: 'POST' }).then(() => location.reload())}
@@ -106,6 +108,9 @@ function SendBot({ me }: { me: Me }) {
       <form onSubmit={send} className="flex flex-col gap-3 rounded-2xl border border-line bg-paper p-5">
         <label className="text-sm font-bold" htmlFor="url">Meeting link</label>
         <input id="url" required value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://meet.google.com/abc-defg-hij" className={field} />
+        <label className="text-sm font-bold" htmlFor="botName">Bot name</label>
+        <input id="botName" maxLength={100} value={botName} onChange={(e) => setBotName(e.target.value)} className={field} />
+        <p className="-mt-1 text-sm text-soft">What everyone in the meeting sees. Kept for your next call.</p>
         <label className="text-sm font-bold" htmlFor="prospect">Business (optional)</label>
         <input id="prospect" value={prospect} onChange={(e) => setProspect(e.target.value)} placeholder="Ridge Flooring" className={field} />
         {error && <p className="text-sm font-bold text-rust">{error}</p>}
@@ -127,4 +132,19 @@ function SendBot({ me }: { me: Me }) {
       )}
     </main>
   )
+}
+
+/** The seller's last bot name, kept in this browser only. */
+function savedBotName(): string | null {
+  try {
+    return localStorage.getItem('botName') || null
+  } catch {
+    return null
+  }
+}
+
+function saveBotName(name: string) {
+  try {
+    if (name) localStorage.setItem('botName', name)
+  } catch {}
 }

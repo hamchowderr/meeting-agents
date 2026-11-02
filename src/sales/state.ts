@@ -13,6 +13,8 @@ export type CallState = {
   prospect: string | null
   /** Who runs this call. Only they (and admins) see it; later, their commission. */
   seller: { name: string; email: string }
+  /** The name the bot joins the meeting with, chosen by the seller. */
+  botName: string
   status: 'joining' | 'live' | 'ended' | 'failed'
   startedAt: number
   transcript: Utterance[]
@@ -102,6 +104,7 @@ export function copilotView(s: CallState) {
 export function prospectView(s: CallState) {
   return {
     seller: s.seller.name.split(/\s+/)[0] ?? s.seller.name,
+    botName: s.botName,
     prospect: s.prospect,
     showMath: s.showMath,
     said: s.showMath ? s.said : {},

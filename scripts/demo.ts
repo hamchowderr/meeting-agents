@@ -25,7 +25,7 @@ const SCRIPT: [string, string, Partial<Extraction>][] = [
 const none: Extraction = { numbers: [], goal: null, leak: null, coldQuotes: null, adminHoursPerWeek: null, moneyQuestion: null, step: 0, askNext: ask('', '') }
 let n = 0
 const recall = { createBot: async () => ({ id: 'demo-bot' }), leaveCall: async () => ({}) } as unknown as RecallClient
-const calls = new Calls({ recall, extractor: async () => ({ ...none, ...SCRIPT[n - 1]![2] }), publicUrl: 'http://localhost:4111', botName: 'Otaku notes', debounceMs: 50 })
+const calls = new Calls({ recall, extractor: async () => ({ ...none, ...SCRIPT[n - 1]![2] }), publicUrl: 'http://localhost:4111', debounceMs: 50 })
 process.env.RECALL_API_KEY ||= 'demo-signing-material'
 process.env.SELLERS ||= 'Tylan Miller <tylan@otakusolutions.io> admin'
 

@@ -44,7 +44,7 @@ describe('transcript events', () => {
 
 describe('Recall client', () => {
   it('asks for low-latency streaming transcription and a 4-core webpage camera', () => {
-    const body = createBotBody({ meetingUrl: 'https://meet.google.com/abc-defg-hij', botName: 'Otaku notes', transcriptWebhookUrl: 'https://x/hook', cameraPageUrl: 'https://x/screen' })
+    const body = createBotBody({ meetingUrl: 'https://meet.google.com/abc-defg-hij', botName: "Tylan's notetaker", transcriptWebhookUrl: 'https://x/hook', cameraPageUrl: 'https://x/screen' })
     expect(body.recording_config.transcript.provider.recallai_streaming).toEqual({ mode: 'prioritize_low_latency', language_code: 'en' })
     expect(body.recording_config.realtime_endpoints).toEqual([{ type: 'webhook', url: 'https://x/hook', events: ['transcript.data'] }])
     expect(body.output_media?.camera.config.url).toBe('https://x/screen')

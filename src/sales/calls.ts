@@ -23,7 +23,8 @@ export type CallsOptions = {
   recall: RecallClient | null
   extractor: Extractor
   publicUrl: string
-  botName: string
+  /** Bot name when the seller picks none; defaults to "<first name>'s notetaker". */
+  botName?: string
   /** Wait this long after the last line before asking the model, so one pass covers a burst. */
   debounceMs?: number
 }
@@ -37,9 +38,10 @@ export class Calls {
   private calls = new Map<string, Entry>()
   constructor(private readonly opts: CallsOptions) {}
 
-  async start(input: { meetingUrl: string; prospect?: string | null; seller: { name: string; email: string } }): Promise<CallState> {
+  async start(input: { meetingUrl: string; prospect?: string | null; botName?: string | null; seller: { name: string; email: string } }): Promise<CallState> {
     if (!this.opts.recall) throw new Error('RECALL_API_KEY is not set')
     const id = crypto.randomUUID()
+    const botName = input.botName?.trim() || this.opts.botName || defaultBotName(input.seller.name)
     const entry: Entry = {
       state: {
         id,
@@ -47,6 +49,7 @@ export class Calls {
         meetingUrl: input.meetingUrl,
         prospect: input.prospect?.trim() || null,
         seller: { name: input.seller.name, email: input.seller.email },
+        botName,
         status: 'joining',
         startedAt: Date.now(),
         transcript: [],
@@ -72,7 +75,7 @@ export class Calls {
     try {
       const bot = await this.opts.recall.createBot({
         meetingUrl: input.meetingUrl,
-        botName: this.opts.botName,
+        botName,
         transcriptWebhookUrl: `${this.opts.publicUrl}/recall/transcript/${id}?s=${entry.hookSecret}`,
         cameraPageUrl: this.screenUrl(id),
         metadata: { callId: id, agent: 'sales-call', seller: input.seller.email },
@@ -191,4 +194,10 @@ export function safeEqual(a: string, b: string): boolean {
   const x = Buffer.from(a)
   const y = Buffer.from(b)
   return x.length === y.length && crypto.timingSafeEqual(new Uint8Array(x), new Uint8Array(y))
+}
+
+/** The bot's name when the seller leaves it blank: "Tylan's notetaker". */
+export function defaultBotName(sellerName: string): string {
+  const first = sellerName.trim().split(/\s+/)[0] || 'Sales'
+  return `${first}'s notetaker`
 }
