@@ -221,3 +221,26 @@ describe('bookings, webhooks and notes through the API', () => {
     expect(recall.createBot).toHaveBeenCalledTimes(1)
   })
 })
+
+describe('the live-screen link in Slack', () => {
+  it('DMs the call seller once, when the bot reaches the waiting room or the meeting', async () => {
+    const dm = vi.fn(async (_email: string, _text: string) => {})
+    const recall = fakeRecall()
+    const calls = new Calls({ recall: recall as never, extractor: async () => none, dm, publicUrl: 'https://sales.example', debounceMs: 0 })
+    const s = await calls.start({ meetingUrl: 'https://meet.google.com/abc', joinAt: new Date(Date.now() + 3600_000), prospect: 'Ridge Flooring', seller: { name: 'Ric Forbes', email: 'ricforbes@otakusolutions.io' } })
+    calls.botStatus('bot_1', 'joining_call', null)
+    expect(dm).not.toHaveBeenCalled()
+    calls.botStatus('bot_1', 'in_waiting_room', null)
+    calls.botStatus('bot_1', 'in_call_recording', null)
+    calls.addUtterance(s.id, { speakerId: 1, speaker: 'Ric', isHost: true, text: 'hi', at: 1 })
+    await vi.waitFor(() => expect(dm).toHaveBeenCalledTimes(1))
+    expect(dm.mock.calls[0]![0]).toBe('ricforbes@otakusolutions.io')
+    expect(dm.mock.calls[0]![1]).toContain(`https://sales.example/app/live/${s.id}`)
+    expect(dm.mock.calls[0]![1]).toMatch(/waiting room/)
+  })
+
+  it('maps sign-in emails to Slack member ids', async () => {
+    const { parseSlackUsers } = await import('../src/notify/slack')
+    expect(parseSlackUsers('tylan@otakusolutions.io=U1, RicForbes@otakusolutions.io = U2')).toEqual(new Map([['tylan@otakusolutions.io', 'U1'], ['ricforbes@otakusolutions.io', 'U2']]))
+  })
+})

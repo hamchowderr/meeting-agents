@@ -2,6 +2,7 @@ import crypto from 'node:crypto'
 import { type CrmApi, writeMeetingNote } from '../crm/fluentcrm'
 import { type RecallClient, RecallError, readableTranscript } from '../recall/client'
 import type { Utterance } from '../recall/transcript'
+import type { SendDm } from '../notify/slack'
 import type { CallStore, StoredCall } from '../store/calls-db'
 import { type Extractor, isSeller } from './extract'
 import { type CallState, type Notes, applyExtraction } from './state'
@@ -32,6 +33,8 @@ export type CallsOptions = {
   /** Writes the meeting note to the prospect's CRM contact. Without it, notes stay in the app. */
   crm?: CrmApi | null
   summarizer?: Summarizer
+  /** DMs the call's seller the live-screen link when the bot gets into the meeting. */
+  dm?: SendDm | null
 }
 
 export type StartInput = {
@@ -267,6 +270,22 @@ export class Calls {
     const order = ['scheduled', 'joining', 'waiting', 'live', 'ended', 'failed']
     if (order.indexOf(next) < order.indexOf(s.status) && next !== 'failed') return
     this.update(s.id, { status: next, ...(code === 'fatal' && { error: `The bot could not stay in the meeting (${subCode ?? 'fatal'}).` }) })
+    if (next === 'waiting' || next === 'live') void this.sendLink(s.id)
+  }
+
+  /** The seller's live-screen link, once per call, as soon as the bot is in the meeting or its waiting room. */
+  async sendLink(id: string): Promise<void> {
+    const e = this.calls.get(id)
+    if (!e || !this.opts.dm || e.state.linkSentAt) return
+    this.update(id, { linkSentAt: Date.now() })
+    const s = e.state
+    const who = s.prospect ? ` with ${s.prospect}` : ''
+    const waiting = s.status === 'waiting' ? ' It is in the waiting room: admit it.' : ''
+    try {
+      await this.opts.dm(s.seller.email, `Your notetaker is in the meeting${who}.${waiting} Live screen: ${this.opts.publicUrl}/app/live/${id}`)
+    } catch (err) {
+      console.error('live-screen link not sent', { callId: id, error: err instanceof Error ? err.message : String(err) })
+    }
   }
 
   /** recording.done: start Recall's post-meeting transcript, once per recording. */
@@ -343,6 +362,7 @@ export class Calls {
     const line = { ...u, seller: isSeller(u, e.state.seller.name) }
     const live = ['scheduled', 'joining', 'waiting'].includes(e.state.status)
     this.update(id, { transcript: [...e.state.transcript, line], status: live ? 'live' : e.state.status })
+    if (!e.state.linkSentAt) void this.sendLink(id)
     if (e.timer) clearTimeout(e.timer)
     e.timer = setTimeout(() => {
       e.timer = null
