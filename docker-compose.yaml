@@ -1,0 +1,22 @@
+# Meeting agents on Coolify. Coolify routes the domain to port 4111.
+# Secrets come from Infisical: project "Otaku Solutions", Production, folder /otaku.
+services:
+  agents:
+    build: .
+    environment:
+      - SERVICE_FQDN_AGENTS_4111
+      # The public https address, used in the bot's webhook and camera-page links.
+      - PUBLIC_URL=${PUBLIC_URL}
+      - RECALL_API_KEY=${RECALL_API_KEY}
+      - RECALL_REGION=${RECALL_REGION:-us-west-2}
+      # Optional: Recall's workspace verification secret (whsec_...). Each bot's webhook
+      # URL already carries its own random secret; with this set, Recall's signature is checked too.
+      - RECALL_WEBHOOK_SECRET=${RECALL_WEBHOOK_SECRET:-}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      # Who can sign in (a code is emailed through the hub). "Name <email>", comma separated; "admin" sees all calls.
+      - SELLERS=${SELLERS}
+      # Hub WordPress application password (user:pass) for sending sign-in codes; same as Client Desk's.
+      - FLUENTCRM_AUTH=${FLUENTCRM_AUTH}
+      # Optional: one bot name for everyone. Unset, each seller names their own bot (default "<first name>'s notetaker").
+      - BOT_NAME=${BOT_NAME:-}
+    restart: unless-stopped

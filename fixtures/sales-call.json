@@ -1,0 +1,64 @@
+{
+  "fixtures": [
+    {
+      "match": {
+        "userMessage": "Newest lines:\nSELLER (Tylan): Thanks for jumping on.",
+        "systemMessage": "You listen to a live sales call",
+        "responseFormat": "json_schema"
+      },
+      "response": {
+        "content": "{\"numbers\": [], \"goal\": {\"amount\": 1000000, \"why\": null}, \"leak\": null, \"coldQuotes\": null, \"adminHoursPerWeek\": null, \"moneyQuestion\": null, \"step\": 0, \"askNext\": {\"question\": \"What would hitting a million mean for you?\", \"reason\": \"Get the reason in their words; you'll repeat it at the offer.\", \"alternates\": []}}"
+      }
+    },
+    {
+      "match": {
+        "userMessage": "Newest lines:\nSELLER (Tylan): What would hitting a million mean for you?",
+        "systemMessage": "You listen to a live sales call",
+        "responseFormat": "json_schema"
+      },
+      "response": {
+        "content": "{\"numbers\": [], \"goal\": {\"amount\": null, \"why\": \"Hire a second install crew\"}, \"leak\": null, \"coldQuotes\": null, \"adminHoursPerWeek\": null, \"moneyQuestion\": null, \"step\": 1, \"askNext\": {\"question\": \"Roughly how many calls and forms come in a month?\", \"reason\": \"Leads first; the rest builds on it.\", \"alternates\": []}}"
+      }
+    },
+    {
+      "match": {
+        "userMessage": "Newest lines:\nSELLER (Tylan): Roughly how many calls",
+        "systemMessage": "You listen to a live sales call",
+        "responseFormat": "json_schema"
+      },
+      "response": {
+        "content": "{\"numbers\": [{\"lever\": \"leads\", \"value\": 720, \"quote\": \"about 60 a month\"}], \"goal\": null, \"leak\": null, \"coldQuotes\": null, \"adminHoursPerWeek\": null, \"moneyQuestion\": null, \"step\": 2, \"askNext\": {\"question\": \"Out of ten who reach out, how many hire you?\", \"reason\": \"Conversion is the likely leak.\", \"alternates\": [\"How many are calls versus forms?\"]}}"
+      }
+    },
+    {
+      "match": {
+        "userMessage": "Newest lines:\nSELLER (Tylan): And out of ten, how many hire you?",
+        "systemMessage": "You listen to a live sales call",
+        "responseFormat": "json_schema"
+      },
+      "response": {
+        "content": "{\"numbers\": [{\"lever\": \"conv\", \"value\": 0.2, \"quote\": \"maybe one in five\"}], \"goal\": null, \"leak\": {\"lever\": \"conv\", \"evidence\": \"After five it goes to voicemail; forms wait until the next day\"}, \"coldQuotes\": null, \"adminHoursPerWeek\": null, \"moneyQuestion\": null, \"step\": 2, \"askNext\": {\"question\": \"Of every hundred dollars that comes in, how much do you keep?\", \"reason\": \"Margin is the last big gap.\", \"alternates\": []}}"
+      }
+    },
+    {
+      "match": {
+        "userMessage": "Newest lines:\nSELLER (Tylan): Of every hundred dollars",
+        "systemMessage": "You listen to a live sales call",
+        "responseFormat": "json_schema"
+      },
+      "response": {
+        "content": "{\"numbers\": [{\"lever\": \"margin\", \"value\": 0.25, \"quote\": \"about 25 cents on the dollar\"}, {\"lever\": \"sale\", \"value\": 6000, \"quote\": \"around six grand\"}, {\"lever\": \"tx\", \"value\": 1.0, \"quote\": \"people rarely come back\"}], \"goal\": null, \"leak\": null, \"coldQuotes\": null, \"adminHoursPerWeek\": null, \"moneyQuestion\": null, \"step\": 2, \"askNext\": {\"question\": \"Want to see what each one is worth?\", \"reason\": \"All five numbers are in. Turn the math on.\", \"alternates\": []}}"
+      }
+    },
+    {
+      "match": {
+        "userMessage": "Newest lines:\nPROSPECT (Marcus Reed): So what would fixing that",
+        "systemMessage": "You listen to a live sales call",
+        "responseFormat": "json_schema"
+      },
+      "response": {
+        "content": "{\"numbers\": [], \"goal\": null, \"leak\": null, \"coldQuotes\": null, \"adminHoursPerWeek\": null, \"moneyQuestion\": \"So what would fixing that actually be worth to us?\", \"step\": 3, \"askNext\": {\"question\": \"Speed to lead fixes the after-hours gap. Name the outcome, then the price.\", \"reason\": \"They asked the money question; the answer is on screen.\", \"alternates\": []}}"
+      }
+    }
+  ]
+}
