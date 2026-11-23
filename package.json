@@ -18,6 +18,7 @@
   },
   "dependencies": {
     "@ai-sdk/openai": "^4.0.106",
+    "@libsql/client": "^0.18.0",
     "@mastra/core": "^1.81.0",
     "hono": "^4.13.16",
     "zod": "^4.6.7"

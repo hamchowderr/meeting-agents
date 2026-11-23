@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { LEVER_INFO, fmt, money } from '../../src/sales/levers'
-import { type CopilotView, api, useLive } from './api'
+import { type CopilotView, type Notes, api, statusLabel, useLive } from './api'
 
 const STEPS = ['Objective', 'Why it matters', 'Find the leak', 'Solution', 'Offer']
 const FIT = { strong: ['Strong fit', 'bg-good text-white'], possible: ['Possible', 'bg-[#fdf0c8] text-[#7a5600]'], ask: ['Ask first', 'bg-mist text-soft'] } as const
@@ -38,7 +38,7 @@ export function Copilot({ id }: { id: string }) {
       <header className="flex flex-wrap items-center gap-x-5 gap-y-2 bg-ink px-4 py-3 text-[#f1ecf6] md:px-6">
         <span className="flex items-center gap-2 font-mono font-extrabold">
           <i className={`size-2.5 rounded-full ${v.status === 'live' ? 'bg-[#e5484d]' : 'bg-soft'}`} />
-          {v.status === 'live' ? clock(v.startedAt, now) : v.status === 'joining' ? 'Joining…' : v.status}
+          {v.status === 'live' ? clock(v.startedAt, now) : statusLabel(v.status, v.joinAt)}
         </span>
         <span className="font-extrabold">{v.prospect ?? 'Live call'}</span>
         <ol className="flex flex-wrap gap-1 md:ml-auto">
@@ -69,6 +69,7 @@ export function Copilot({ id }: { id: string }) {
       </header>
 
       {(v.error || !connected) && <p className="bg-blush px-6 py-2 text-sm font-bold text-rust">{!connected ? 'Reconnecting…' : v.error}</p>}
+      {v.notes && <AfterMeeting notes={v.notes} prospectEmail={v.prospectEmail} />}
 
       <main className="grid flex-1 gap-4 p-4 md:p-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
         <section className="flex min-w-0 flex-col gap-4">
@@ -208,4 +209,45 @@ function talkShare(v: CopilotView): number | null {
     if (u.seller) seller += n
   }
   return total ? Math.round((seller / total) * 100) : null
+}
+
+/** After the meeting: Recall's transcript, the summary and whether it reached the CRM. */
+function AfterMeeting({ notes, prospectEmail }: { notes: Notes; prospectEmail: string | null }) {
+  const crm =
+    notes.crm === 'written'
+      ? `Saved to the CRM on ${prospectEmail} with "Call: Held".`
+      : notes.crm === 'skipped'
+        ? 'Not saved to the CRM: this call has no prospect email.'
+        : notes.crm === 'failed'
+          ? 'The CRM note failed; the notes are kept here.'
+          : null
+  return (
+    <section className="mx-4 mt-4 flex flex-col gap-3 rounded-2xl border border-line bg-paper p-5 md:mx-6">
+      <h2 className="text-xs font-extrabold uppercase tracking-widest text-soft">Meeting notes</h2>
+      {notes.status === 'transcribing' && <p className="text-soft">Recall is transcribing the recording. The notes appear here when it finishes.</p>}
+      {notes.error && <p className="font-bold text-rust">{notes.error}</p>}
+      {notes.summary && (
+        <>
+          <p>{notes.summary.summary}</p>
+          {notes.summary.goal && <p><b>Goal:</b> {notes.summary.goal}</p>}
+          {notes.summary.leak && <p><b>Leak:</b> {notes.summary.leak}</p>}
+          {notes.summary.nextStep && <p><b>Next step:</b> {notes.summary.nextStep}</p>}
+          {!!notes.summary.followUps.length && (
+            <ul className="list-disc pl-5">
+              {notes.summary.followUps.map((f) => (
+                <li key={f}>{f}</li>
+              ))}
+            </ul>
+          )}
+        </>
+      )}
+      {crm && <p className="text-sm text-soft">{crm}</p>}
+      {notes.transcript && (
+        <details>
+          <summary className="cursor-pointer text-sm font-bold">Full transcript</summary>
+          <pre className="mt-2 whitespace-pre-wrap font-sans text-sm leading-relaxed">{notes.transcript}</pre>
+        </details>
+      )}
+    </section>
+  )
 }

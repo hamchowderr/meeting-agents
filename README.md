@@ -64,3 +64,20 @@ derived from `RECALL_API_KEY` unless `SESSION_SECRET` is set. `RECALL_WEBHOOK_SE
 - **Zoom:** works with no setup. Turn the waiting room off for booked calls, or admit the bot.
 - **Google Meet:** works as a guest the host admits. For bots that join on their own,
   Recall's signed-in bots need a dedicated Google Workspace account.
+
+## How bots reach meetings
+
+- **Booked meetings (production path).** The hub's bookings snippet posts every booking on a seller's intro-call event to `POST /bookings` (header `X-Hook-Secret` = `BOOKINGS_SECRET`). The app creates a Recall bot with `join_at` set to the meeting start and stores booking id → bot id, so a repeated post never creates a second bot. A rescheduled booking replaces the scheduled bot; a cancelled one deletes it (or removes it from the call inside the last 10 minutes). A booking without a Zoom or Meet link gets no bot.
+- **Pasted link (unplanned calls).** The start page sends a bot to a link at once.
+- **Recording notice.** Every bot posts "This meeting is being recorded and transcribed" in the meeting chat when it joins.
+- **Calendar.** Recall Calendar V2 is not used: FluentBooking already syncs the sellers' Google calendars and creates the meeting links, so bookings are the scheduling source. Next step if meetings booked outside FluentBooking need bots: connect Calendar V2 (Google OAuth app, then `start_calendar_integration_setup`) with an opt-in rule per event.
+
+## After the meeting
+
+Recall's dashboard webhook (`POST /recall/webhook`, verified with `RECALL_WEBHOOK_VERIFICATION_SECRET`) drives the rest:
+
+1. `bot.*` events move the call through scheduled → joining → waiting → live → ended (or failed).
+2. `recording.done` starts a Recall.ai Transcription post-meeting transcript (`recallai_async`, separate-stream diarization).
+3. `transcript.done` downloads it, writes a summary with the meeting-summary agent, and adds a `meeting` note plus the `Call: Held` tag to the prospect's FluentCRM contact. The transcript and summary also show on the call's page.
+
+Each webhook id is handled once; the after-meeting job runs once per call. Calls are saved in libSQL (`DATABASE_URL`: a file on the Coolify volume, or Turso), so a restart keeps scheduled bots and notes.
