@@ -17,6 +17,19 @@ services:
       - SELLERS=${SELLERS}
       # Hub WordPress application password (user:pass) for sending sign-in codes; same as Client Desk's.
       - FLUENTCRM_AUTH=${FLUENTCRM_AUTH}
+      # Calls (scheduled bots, transcripts, notes) survive restarts here: a file on the volume,
+      # or a Turso URL (libsql://...) with DATABASE_AUTH_TOKEN.
+      - DATABASE_URL=${DATABASE_URL:-file:/data/calls.db}
+      - DATABASE_AUTH_TOKEN=${DATABASE_AUTH_TOKEN:-}
+      # The signing secret of the Recall dashboard webhook endpoint for /recall/webhook (whsec_...).
+      - RECALL_WEBHOOK_VERIFICATION_SECRET=${RECALL_WEBHOOK_VERIFICATION_SECRET}
+      # Shared with the hub's bookings snippet (option otaku_meeting_bot_secret), sent as X-Hook-Secret on /bookings.
+      - BOOKINGS_SECRET=${BOOKINGS_SECRET}
       # Optional: one bot name for everyone. Unset, each seller names their own bot (default "<first name>'s notetaker").
       - BOT_NAME=${BOT_NAME:-}
+    volumes:
+      - calls-data:/data
     restart: unless-stopped
+
+volumes:
+  calls-data:

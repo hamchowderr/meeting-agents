@@ -15,7 +15,19 @@ export type CallState = {
   seller: { name: string; email: string }
   /** The name the bot joins the meeting with, chosen by the seller. */
   botName: string
-  status: 'joining' | 'live' | 'ended' | 'failed'
+  /**
+   * scheduled: the bot waits for join time; joining / waiting (waiting room) / live: in the
+   * meeting; ended: the bot left; cancelled: the booking was cancelled; failed: Recall gave up.
+   */
+  status: 'scheduled' | 'joining' | 'waiting' | 'live' | 'ended' | 'cancelled' | 'failed'
+  /** When the bot joins (ms), from the booking or "now" for a pasted link. */
+  joinAt: number
+  /** The hub booking this call came from; null for a pasted link. */
+  bookingId: string | null
+  /** Who the notes go to in the CRM. */
+  prospectEmail: string | null
+  /** After the meeting: Recall's transcript, the summary and the CRM write. */
+  notes: Notes | null
   startedAt: number
   transcript: Utterance[]
   said: Partial<Record<Lever, Said>>
@@ -29,6 +41,16 @@ export type CallState = {
   showMath: boolean
   /** Lever lifted on the prospect's screen when they ask what a fix is worth. */
   liftLever: Lever | null
+  error: string | null
+}
+
+export type Notes = {
+  /** transcribing: Recall is transcribing the recording; done: summary written; failed: see error. */
+  status: 'transcribing' | 'done' | 'failed'
+  summary: import('./summary').MeetingSummary | null
+  transcript: string | null
+  /** written: note and "Call: Held" on the contact; skipped: no prospect email; failed: see error. */
+  crm: 'written' | 'skipped' | 'failed' | null
   error: string | null
 }
 

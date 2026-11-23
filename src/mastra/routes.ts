@@ -4,11 +4,11 @@ import { registerApiRoute } from '@mastra/core/server'
 import type { Context } from 'hono'
 import { z } from 'zod'
 import { mailerFromEnv, type SendCode } from '../auth/mail'
-import { type Seller, sellersFromEnv } from '../auth/sellers'
+import { type Seller, firstName, sellersFromEnv } from '../auth/sellers'
 import { Codes, clearCookie, sellerFrom, sessionCookie } from '../auth/session'
 import { isFromRecall } from '../recall/verify'
 import { utteranceFrom } from '../recall/transcript'
-import type { Calls } from '../sales/calls'
+import { type Calls, safeEqual } from '../sales/calls'
 import { type CallState, copilotView, prospectView } from '../sales/state'
 
 const open = { requiresAuth: false } as const
@@ -53,17 +53,64 @@ function sse(c: Context, calls: Calls, id: string, view: (s: CallState) => unkno
   })
 }
 
+const meetingLink = z
+  .string()
+  .url()
+  .refine((u) => /zoom\.us|meet\.google\.com|teams\.microsoft\.com|teams\.live\.com/.test(u), 'Zoom, Google Meet or Teams link')
+
 const startInput = z.object({
-  meetingUrl: z.string().url().refine((u) => /zoom\.us|meet\.google\.com|teams\.microsoft\.com|teams\.live\.com/.test(u), 'Zoom, Google Meet or Teams link'),
+  meetingUrl: meetingLink,
   prospect: z.string().max(120).nullish(),
+  prospectEmail: z.string().email().nullish(),
   /** What the bot is called in the meeting; blank means "<first name>'s notetaker". */
   botName: z.string().trim().max(100).nullish(),
 })
+
+/** What the hub posts for each booking on a seller's intro-call event, and each cancellation. */
+const bookingInput = z.object({
+  bookingId: z.union([z.string(), z.number()]).transform(String),
+  status: z.enum(['scheduled', 'cancelled']),
+  /** The seller key the booking records ("tylan", "ric"): matched to a seller's first name. */
+  seller: z.string().min(1),
+  prospectName: z.string().max(120).nullish(),
+  prospectEmail: z.string().email().nullish(),
+  startAt: z.string().datetime({ offset: true }).nullish(),
+  meetingUrl: z.string().nullish(),
+})
+
+const RECALL_HEADERS = ['webhook-id', 'webhook-timestamp', 'webhook-signature', 'svix-id', 'svix-timestamp', 'svix-signature']
+
+function recallHeaders(c: Context): Record<string, string | undefined> {
+  return Object.fromEntries(RECALL_HEADERS.map((k) => [k, c.req.header(k)]))
+}
+
+type RecallEvent = {
+  event?: string
+  data?: {
+    data?: { code?: string; sub_code?: string | null }
+    bot?: { id?: string }
+    recording?: { id?: string }
+    transcript?: { id?: string }
+  }
+}
+
+/** Handles one verified Recall event after the 2xx went back. */
+export async function handleRecallEvent(calls: Calls, ev: RecallEvent): Promise<void> {
+  const type = ev.event ?? ''
+  const botId = ev.data?.bot?.id
+  if (!botId) return
+  if (type.startsWith('bot.')) calls.botStatus(botId, ev.data?.data?.code ?? type.slice(4), ev.data?.data?.sub_code ?? null)
+  else if (type === 'recording.done' && ev.data?.recording?.id) await calls.recordingDone(botId, ev.data.recording.id)
+  else if (type === 'transcript.done' && ev.data?.transcript?.id) await calls.transcriptDone(botId, ev.data.transcript.id)
+  else if (type === 'transcript.failed') calls.transcriptFailed(botId, ev.data?.data?.sub_code ?? null)
+}
 
 export function salesRoutes(calls: Calls, opts: { webDist?: string; sendCode?: SendCode } = {}) {
   const webDist = opts.webDist ?? (process.env.WEB_DIST || path.resolve(process.cwd(), 'web/dist'))
   const sendCode = opts.sendCode ?? mailerFromEnv()
   const codes = new Codes()
+  // Recall retries a message until it gets a 2xx; the same webhook-id is handled once.
+  const seenEvents = new Map<string, number>()
   return [
     registerApiRoute('/health', { method: 'GET', ...open, handler: async (c) => c.json({ ok: true }) }),
 
@@ -137,7 +184,20 @@ export function salesRoutes(calls: Calls, opts: { webDist?: string; sendCode?: S
       handler: async (c) => {
         const seller = sellerFrom(c)
         if (!seller) return denied(c)
-        return c.json(calls.list(seller).map((s) => ({ id: s.id, prospect: s.prospect, seller: s.seller.name, status: s.status, startedAt: s.startedAt, meetingUrl: s.meetingUrl })))
+        return c.json(
+          calls.list(seller).map((s) => ({
+            id: s.id,
+            prospect: s.prospect,
+            seller: s.seller.name,
+            status: s.status,
+            startedAt: s.startedAt,
+            joinAt: s.joinAt,
+            booked: !!s.bookingId,
+            notes: s.notes?.status ?? null,
+            crm: s.notes?.crm ?? null,
+            meetingUrl: s.meetingUrl,
+          })),
+        )
       },
     }),
     registerApiRoute('/calls/:id', {
@@ -221,6 +281,79 @@ export function salesRoutes(calls: Calls, opts: { webDist?: string; sendCode?: S
         // Answer at once; the extraction runs after the response.
         if (parsed) calls.addUtterance(id, parsed.utterance)
         return c.json({ ok: true })
+      },
+    }),
+
+    // Recall's dashboard webhook: bot status, recording.done, transcript.done / failed.
+    // Verified on the raw body with RECALL_WEBHOOK_VERIFICATION_SECRET, answered at once,
+    // processed after the response. Logs ids, event types and outcomes only.
+    registerApiRoute('/recall/webhook', {
+      method: 'POST',
+      ...open,
+      handler: async (c) => {
+        const secret = process.env.RECALL_WEBHOOK_VERIFICATION_SECRET
+        const raw = await c.req.text()
+        const headers = recallHeaders(c)
+        const msgId = headers['webhook-id'] ?? headers['svix-id'] ?? ''
+        if (!secret || !isFromRecall(secret, headers, raw)) {
+          console.warn('recall webhook rejected', { id: msgId || null, configured: !!secret })
+          return c.json({ error: 'bad_signature' }, 401)
+        }
+        let ev: RecallEvent
+        try {
+          ev = JSON.parse(raw) as RecallEvent
+        } catch {
+          return c.json({ error: 'invalid' }, 400)
+        }
+        if (seenEvents.has(msgId)) return c.json({ ok: true, duplicate: true })
+        seenEvents.set(msgId, Date.now())
+        if (seenEvents.size > 5000) seenEvents.delete(seenEvents.keys().next().value!)
+        setImmediate(() => {
+          handleRecallEvent(calls, ev)
+            .then(() => console.log('recall event handled', { id: msgId, event: ev.event, bot: ev.data?.bot?.id ?? null }))
+            .catch((e) => {
+              // Forget the id so Recall's retry runs it again.
+              seenEvents.delete(msgId)
+              console.error('recall event failed', { id: msgId, event: ev.event, error: e instanceof Error ? e.message : String(e) })
+            })
+        })
+        return c.json({ ok: true })
+      },
+    }),
+
+    // The hub's bookings snippet: schedules the seller's bot for a booking, or cancels it.
+    registerApiRoute('/bookings', {
+      method: 'POST',
+      ...open,
+      handler: async (c) => {
+        const secret = process.env.BOOKINGS_SECRET
+        const given = c.req.header('x-hook-secret')
+        if (!secret || !given || !safeEqual(secret, given)) return c.json({ error: 'unauthorized' }, 401)
+        const parsed = bookingInput.safeParse(await c.req.json().catch(() => ({})))
+        if (!parsed.success) return c.json({ error: 'invalid', message: parsed.error.issues[0]?.message ?? 'Invalid input' }, 400)
+        const b = parsed.data
+        if (b.status === 'cancelled') {
+          const s = await calls.cancelBooking(b.bookingId)
+          return c.json({ ok: true, call: s?.id ?? null, status: s?.status ?? 'none' })
+        }
+        const seller = sellersFromEnv().find((s) => firstName(s).toLowerCase() === b.seller.toLowerCase())
+        if (!seller) return c.json({ error: 'unknown_seller', message: `No seller named ${b.seller}` }, 422)
+        const link = meetingLink.safeParse(b.meetingUrl ?? '')
+        if (!link.success) return c.json({ ok: true, skipped: 'no_meeting_link' })
+        if (!b.startAt) return c.json({ error: 'invalid', message: 'startAt is required' }, 400)
+        try {
+          const s = await calls.start({
+            meetingUrl: link.data,
+            joinAt: new Date(b.startAt),
+            bookingId: b.bookingId,
+            prospect: b.prospectName,
+            prospectEmail: b.prospectEmail,
+            seller,
+          })
+          return c.json({ ok: true, call: s.id, bot: s.botId, status: s.status, joinAt: new Date(s.joinAt).toISOString() }, 201)
+        } catch (e) {
+          return c.json({ error: 'recall_failed', message: e instanceof Error ? e.message : String(e) }, 502)
+        }
       },
     }),
 

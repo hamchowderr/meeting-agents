@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
-import { type Me, api } from './api'
+import { type CallStatus, type Me, api, statusLabel } from './api'
 
-type CallRow = { id: string; prospect: string | null; seller: string; status: string; startedAt: number; meetingUrl: string }
+type CallRow = { id: string; prospect: string | null; seller: string; status: CallStatus; startedAt: number; joinAt: number; booked: boolean; notes: string | null; crm: string | null; meetingUrl: string }
 
 const field = 'rounded-lg border border-line bg-paper px-3 py-2'
 const button = 'rounded-lg bg-navy px-4 py-2.5 font-bold text-white disabled:opacity-60'
@@ -96,7 +96,7 @@ function SendBot({ me }: { me: Me }) {
         <div>
           <p className="text-xs font-extrabold uppercase tracking-widest text-rust">Sales co-pilot</p>
           <h1 className="font-display text-4xl leading-tight">Send the co-pilot to a call</h1>
-          <p className="mt-2 text-soft">Paste a Zoom or Google Meet link. The bot joins under the name you choose and your live screen opens here.</p>
+          <p className="mt-2 text-soft">Booked meetings get the bot automatically. For any other call, paste its Zoom or Google Meet link; the bot joins under the name you choose and your live screen opens here.</p>
         </div>
         <button
           onClick={() => api('/auth/logout', { method: 'POST' }).then(() => location.reload())}
@@ -118,14 +118,18 @@ function SendBot({ me }: { me: Me }) {
       </form>
       {calls.length > 0 && (
         <section className="flex flex-col gap-2">
-          <h2 className="text-xs font-extrabold uppercase tracking-widest text-soft">{me.admin ? 'All calls' : 'Your calls'} since the last restart</h2>
+          <h2 className="text-xs font-extrabold uppercase tracking-widest text-soft">{me.admin ? 'All calls' : 'Your calls'}</h2>
           {calls.map((c) => (
             <a key={c.id} href={`/app/live/${c.id}`} className="flex justify-between gap-3 rounded-xl border border-line bg-paper px-4 py-3 font-bold text-ink no-underline">
               <span>
                 {c.prospect ?? c.meetingUrl}
                 {me.admin && <span className="font-medium text-soft"> · {c.seller}</span>}
               </span>
-              <span className="text-soft">{c.status}</span>
+              <span className="text-right text-soft">
+                {statusLabel(c.status, c.joinAt)}
+                {c.notes === 'done' && <span className="block text-sm">{c.crm === 'written' ? 'Notes in the CRM' : 'Notes ready'}</span>}
+                {c.notes === 'transcribing' && <span className="block text-sm">Transcribing…</span>}
+              </span>
             </a>
           ))}
         </section>
