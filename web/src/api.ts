@@ -11,7 +11,11 @@ export type CopilotView = {
   prospect: string | null
   seller: { name: string; email: string }
   botName: string
-  status: 'joining' | 'live' | 'ended' | 'failed'
+  status: CallStatus
+  joinAt: number
+  bookingId: string | null
+  prospectEmail: string | null
+  notes: Notes | null
   startedAt: number
   transcript: Utterance[]
   said: Partial<Record<Lever, Said>>
@@ -26,6 +30,41 @@ export type CopilotView = {
   error: string | null
   offers: RankedOffer[]
   board: { lever: Lever; value: number; said: boolean; weakest: boolean; gain: number }[]
+}
+
+export type CallStatus = 'scheduled' | 'joining' | 'waiting' | 'live' | 'ended' | 'cancelled' | 'failed'
+
+export type Notes = {
+  status: 'transcribing' | 'done' | 'failed'
+  summary: { summary: string; goal: string | null; leak: string | null; nextStep: string | null; followUps: string[] } | null
+  transcript: string | null
+  crm: 'written' | 'skipped' | 'failed' | null
+  error: string | null
+}
+
+/** "Mon, Dec 1, 3:00 PM" in the viewer's time zone. */
+export function when(ms: number): string {
+  return new Date(ms).toLocaleString(undefined, { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+}
+
+/** A call's status in words. */
+export function statusLabel(status: CallStatus, joinAt: number): string {
+  switch (status) {
+    case 'scheduled':
+      return `Bot joins ${when(joinAt)}`
+    case 'joining':
+      return 'Joining…'
+    case 'waiting':
+      return 'In the waiting room: admit the bot'
+    case 'live':
+      return 'Live'
+    case 'ended':
+      return 'Ended'
+    case 'cancelled':
+      return 'Booking cancelled'
+    case 'failed':
+      return 'Bot failed'
+  }
 }
 
 export type ProspectView = {
