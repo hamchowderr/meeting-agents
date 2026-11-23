@@ -69,6 +69,7 @@ derived from `RECALL_API_KEY` unless `SESSION_SECRET` is set. `RECALL_WEBHOOK_SE
 
 - **Booked meetings (production path).** The hub's bookings snippet posts every booking on a seller's intro-call event to `POST /bookings` (header `X-Hook-Secret` = `BOOKINGS_SECRET`). The app creates a Recall bot with `join_at` set to the meeting start and stores booking id → bot id, so a repeated post never creates a second bot. A rescheduled booking replaces the scheduled bot; a cancelled one deletes it (or removes it from the call inside the last 10 minutes). A booking without a Zoom or Meet link gets no bot.
 - **Pasted link (unplanned calls).** The start page sends a bot to a link at once.
+- **Live-screen link.** When the bot reaches the waiting room or the meeting, the seller on that call (Tylan or Sam) gets a Slack DM from Perry's bot with the link to their live screen at `https://sales.otakusolutions.io/app/live/<call>`.
 - **Recording notice.** Every bot posts "This meeting is being recorded and transcribed" in the meeting chat when it joins.
 - **Calendar.** Recall Calendar V2 is not used: FluentBooking already syncs the sellers' Google calendars and creates the meeting links, so bookings are the scheduling source. Next step if meetings booked outside FluentBooking need bots: connect Calendar V2 (Google OAuth app, then `start_calendar_integration_setup`) with an opt-in rule per event.
 

@@ -4,6 +4,7 @@ import { recallFromEnv } from '../recall/client'
 import { Calls } from '../sales/calls'
 import { modelExtractor, salesCallAgent } from '../sales/extract'
 import { meetingSummaryAgent, modelSummarizer } from '../sales/summary'
+import { slackFromEnv } from '../notify/slack'
 import { callStoreFromEnv } from '../store/calls-db'
 import { salesRoutes } from './routes'
 
@@ -25,6 +26,7 @@ export const calls = new Calls({
   summarizer: modelSummarizer(),
   store: callStoreFromEnv(),
   crm: crmFromEnv(),
+  dm: slackFromEnv(),
   publicUrl,
   botName: process.env.BOT_NAME || undefined,
 })

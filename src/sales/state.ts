@@ -28,6 +28,8 @@ export type CallState = {
   prospectEmail: string | null
   /** After the meeting: Recall's transcript, the summary and the CRM write. */
   notes: Notes | null
+  /** When the live-screen link went to the seller in Slack; null until the bot is in. */
+  linkSentAt?: number | null
   startedAt: number
   transcript: Utterance[]
   said: Partial<Record<Lever, Said>>

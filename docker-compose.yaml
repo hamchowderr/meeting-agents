@@ -25,6 +25,10 @@ services:
       - RECALL_WEBHOOK_VERIFICATION_SECRET=${RECALL_WEBHOOK_VERIFICATION_SECRET}
       # Shared with the hub's bookings snippet (option otaku_meeting_bot_secret), sent as X-Hook-Secret on /bookings.
       - BOOKINGS_SECRET=${BOOKINGS_SECRET}
+      # Perry's Slack bot token (chat:write) and each seller's Slack member id, so the bot can DM
+      # the live-screen link: "email=UXXXX, email=UYYYY".
+      - SLACK_BOT_TOKEN=${SLACK_BOT_TOKEN:-}
+      - SLACK_USERS=${SLACK_USERS:-}
       # Optional: one bot name for everyone. Unset, each seller names their own bot (default "<first name>'s notetaker").
       - BOT_NAME=${BOT_NAME:-}
     volumes:
