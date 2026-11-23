@@ -1,0 +1,7 @@
+{
+  "database": "dolt",
+  "backend": "dolt",
+  "dolt_mode": "embedded",
+  "dolt_database": "meeting_agents",
+  "project_id": "7c99d519-fb33-4883-9c4c-dfe3a432786e"
+}
